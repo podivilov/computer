@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Define global functions
+function say() {
+  mplayer "http://tts.voicetech.yandex.net/tts?format=mp3&quality=hi&speaker=zahar&emotion=normal&lang=ru_RU&text=$1" &> /dev/null
+}
+
+function ready() {
+  say "Ничего нового."
+}
+
+# Notify the user that we are ready to go
+aplay /usr/share/computer/sounds/beep.wav &> /dev/null
+
+# Check the internet connection
+ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
+
+# If we are online
+if [[ "$ONLINE" -eq "1" ]]; then
+
+  # Check if the screensaver is running
+  if (xscreensaver-command -time; echo "$?" > /tmp/.xscreensaver-exit-status) | grep "non-blanked" &> /dev/null; then
+    ready
+  else
+    xscreensaver_exit_status=$(cat /tmp/.xscreensaver-exit-status)
+    if [[ "$xscreensaver_exit_status" != "255" ]]; then
+      xscreensaver-command -deactivate &> /dev/null &
+      say "С возвращением!"
+    else
+      ready
+    fi
+  fi
+
+# If we are offline
+else
+
+  # Tell the user that we are currently offline
+  aplay /usr/share/computer/sounds/offline.wav &> /dev/null
+
+fi
