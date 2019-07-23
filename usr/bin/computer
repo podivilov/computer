@@ -5,12 +5,50 @@ function say() {
   mplayer "http://tts.voicetech.yandex.net/tts?format=mp3&quality=hi&speaker=zahar&emotion=normal&lang=ru_RU&text=$1" &> /dev/null
 }
 
+function clear_notifications {
+  # Remove existing notifications
+  killall -9 xfce4-notifyd
+}
+
 function ready() {
-  say "Ничего нового."
+  # Clear notifications
+  clear_notifications
+
+  # Tell the user that we are currently processing the data
+  notify-send -i gnome-run "Один момент..."
+
+  # Get count of new messages
+  NEW_MSG_COUNT=$(timeout 5s /usr/bin/get_unread_message_count)
+
+  # Switch current workspace to another
+  # if [[ $(wmctrl -d | grep "*" | head -c 1) == "0" ]]; then
+  #   wmctrl -s 1
+  # else
+  #   wmctrl -s 0
+  # fi
+
+  # Clear notifications
+  clear_notifications
+
+  # Show new notifications
+  if   [[    "$NEW_MSG_COUNT" -gt "0" ]]; then
+    notify-send -i mail-mark-important "Проверь почту!" "У тебя есть новые сообщения <b>($NEW_MSG_COUNT)</b>"
+  elif [[ -z "$NEW_MSG_COUNT"         ]]; then
+    # Check the internet connection
+    ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
+
+    if [[ "$ONLINE" -eq "0" ]]; then
+      notify-send -i gnome-netstatus-error "Караул!" "<b>Интернета нет!</b>"
+    else
+      notify-send -i error "Упс!" "<b>Что-то пошло не так...</b>"
+    fi
+  else
+    notify-send -i info "Ничего интересного..." "<b>Новых уведомлений нет.</b>"
+  fi
 }
 
 # Notify the user that we are ready to go
-aplay /usr/share/computer/sounds/beep.wav &> /dev/null
+mplayer /usr/share/computer/sounds/beep.wav &> /dev/null
 
 # Check the internet connection
 ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
@@ -25,7 +63,8 @@ if [[ "$ONLINE" -eq "1" ]]; then
     xscreensaver_exit_status=$(cat /tmp/.xscreensaver-exit-status)
     if [[ "$xscreensaver_exit_status" != "255" ]]; then
       xscreensaver-command -deactivate &> /dev/null &
-      say "С возвращением!"
+      say "С возвращением!" &
+      ready
     else
       ready
     fi
@@ -35,6 +74,8 @@ if [[ "$ONLINE" -eq "1" ]]; then
 else
 
   # Tell the user that we are currently offline
-  aplay /usr/share/computer/sounds/offline.wav &> /dev/null
+  # aplay /usr/share/computer/sounds/offline.wav &> /dev/null
+
+  ready
 
 fi
