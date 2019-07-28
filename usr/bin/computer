@@ -1,60 +1,42 @@
 #!/bin/bash
 
-# Define global functions
-function say() {
-  mplayer "http://tts.voicetech.yandex.net/tts?format=mp3&quality=hi&speaker=zahar&emotion=normal&lang=ru_RU&text=$1" &> /dev/null
-}
+# Define global variables
+HOUR=$(date "+%H"); MINUTE=$(date "+%M")
 
-function clear_notifications {
-  # Remove existing notifications
-  killall -9 xfce4-notifyd
-}
+# Should we run in normal mode or remind mode
+if ! [[ "$1" == "--remind" ]]; then
+  # Define global functions
+  function ready() {
+    # Get count of new messages
+    NEW_MSG_COUNT=$(while (true); do ((i++)); timeout 2s /usr/bin/get_unread_message_count; if [[ "$?" -eq "0" || "$i" -ge "5" ]]; then break; fi; done)
 
-function ready() {
-  # Clear notifications
-  clear_notifications
+    # Show new notifications
+    if   [[    "$NEW_MSG_COUNT" -gt "0" ]]; then
+      aplay -q /usr/share/computer/sounds/information.wav &
+      notify-send -i mail-mark-important "Проверь почту!" "У тебя есть новые сообщения <b>($NEW_MSG_COUNT)</b>"
+      thunderbird &
+    elif [[ -z "$NEW_MSG_COUNT"         ]]; then
+      # Check the internet connection
+      ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
+
+      if [[ "$ONLINE" -eq "0" ]]; then
+        aplay -q /usr/share/computer/sounds/error.wav &
+        notify-send -i network-offline "Караул!" "<b>Интернета нет!</b>"
+      else
+        aplay -q /usr/share/computer/sounds/error.wav &
+        notify-send -i error "Упс!" "<b>Что-то пошло не так...</b>"
+      fi
+    else
+      aplay -q /usr/share/computer/sounds/nothing-interesting.wav &
+      notify-send -i info "Ничего интересного..." "<b>Новых сообщений нет.</b>"
+    fi
+  }
+
+  # Notify the user that we are ready to go
+  aplay -q /usr/share/computer/sounds/beep.wav &
 
   # Tell the user that we are currently processing the data
-  notify-send -i gnome-run "Один момент..."
-
-  # Get count of new messages
-  NEW_MSG_COUNT=$(timeout 5s /usr/bin/get_unread_message_count)
-
-  # Switch current workspace to another
-  # if [[ $(wmctrl -d | grep "*" | head -c 1) == "0" ]]; then
-  #   wmctrl -s 1
-  # else
-  #   wmctrl -s 0
-  # fi
-
-  # Clear notifications
-  clear_notifications
-
-  # Show new notifications
-  if   [[    "$NEW_MSG_COUNT" -gt "0" ]]; then
-    notify-send -i mail-mark-important "Проверь почту!" "У тебя есть новые сообщения <b>($NEW_MSG_COUNT)</b>"
-  elif [[ -z "$NEW_MSG_COUNT"         ]]; then
-    # Check the internet connection
-    ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
-
-    if [[ "$ONLINE" -eq "0" ]]; then
-      notify-send -i gnome-netstatus-error "Караул!" "<b>Интернета нет!</b>"
-    else
-      notify-send -i error "Упс!" "<b>Что-то пошло не так...</b>"
-    fi
-  else
-    notify-send -i info "Ничего интересного..." "<b>Новых уведомлений нет.</b>"
-  fi
-}
-
-# Notify the user that we are ready to go
-mplayer /usr/share/computer/sounds/beep.wav &> /dev/null
-
-# Check the internet connection
-ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
-
-# If we are online
-if [[ "$ONLINE" -eq "1" ]]; then
+  notify-send -i gnome-run -t 1 "Один момент..." &
 
   # Check if the screensaver is running
   if (xscreensaver-command -time; echo "$?" > /tmp/.xscreensaver-exit-status) | grep "non-blanked" &> /dev/null; then
@@ -63,19 +45,17 @@ if [[ "$ONLINE" -eq "1" ]]; then
     xscreensaver_exit_status=$(cat /tmp/.xscreensaver-exit-status)
     if [[ "$xscreensaver_exit_status" != "255" ]]; then
       xscreensaver-command -deactivate &> /dev/null &
-      say "С возвращением!" &
       ready
     else
       ready
     fi
   fi
-
-# If we are offline
 else
-
-  # Tell the user that we are currently offline
-  # aplay /usr/share/computer/sounds/offline.wav &> /dev/null
-
-  ready
-
+  if   [[ "$HOUR" == "12" && "$MINUTE" == "00" ]]; then
+    DISPLAY=":0.0" notify-send -i /usr/share/computer/icons/pora-na-obed.png "Пора на обед!" "<b>Ты поторопись\!</b>" &
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav
+  elif [[ "$HOUR" == "16" && "$MINUTE" == "30" ]]; then
+    DISPLAY=":0.0" notify-send -i stock_appointment-reminder "Закругляйся!" "<b>Рабочий день завершён\!</b>" &
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav
+  fi
 fi
