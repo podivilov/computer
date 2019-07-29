@@ -4,24 +4,24 @@
 HOUR=$(date "+%H"); MINUTE=$(date "+%M")
 
 # Should we run in normal mode or remind mode
-if ! [[ "$1" == "--remind" ]]; then
+if [[ -z "$1" ]]; then
   # Define global functions
   function ready() {
     # Get count of new messages
-    NEW_MSG_COUNT=$(while (true); do ((i++)); timeout 2s /usr/bin/get_unread_message_count; if [[ "$?" -eq "0" || "$i" -ge "5" ]]; then break; fi; done)
+    NEW_MSG_COUNT=$(while (true); do ((i++)); timeout 5s /usr/bin/get_unread_message_count; if [[ "$?" -eq "0" || "$i" -ge "2" ]]; then break; fi; done)
 
     # Show new notifications
-    if   [[    "$NEW_MSG_COUNT" -gt "0" ]]; then
+    if [[ "$NEW_MSG_COUNT" -gt "0" ]]; then
       aplay -q /usr/share/computer/sounds/information.wav &
       notify-send -i mail-mark-important "Проверь почту!" "У тебя есть новые сообщения <b>($NEW_MSG_COUNT)</b>"
       thunderbird &
-    elif [[ -z "$NEW_MSG_COUNT"         ]]; then
+    elif [[ -z "$NEW_MSG_COUNT" ]]; then
       # Check the internet connection
       ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
 
       if [[ "$ONLINE" -eq "0" ]]; then
         aplay -q /usr/share/computer/sounds/error.wav &
-        notify-send -i network-offline "Караул!" "<b>Интернета нет!</b>"
+        notify-send -i network-offline "Караул!" "<b>Интернета нет\!</b>"
       else
         aplay -q /usr/share/computer/sounds/error.wav &
         notify-send -i error "Упс!" "<b>Что-то пошло не так...</b>"
@@ -30,13 +30,29 @@ if ! [[ "$1" == "--remind" ]]; then
       aplay -q /usr/share/computer/sounds/nothing-interesting.wav &
       notify-send -i info "Ничего интересного..." "<b>Новых сообщений нет.</b>"
     fi
+    if ! [[ $(iwgetid -r) == "Podivilov" ]]; then
+      sleep 0.75
+      aplay -q /usr/share/computer/sounds/warning.wav &
+      notify-send -i important "Внимание!" "<b>Ты подключен к неизвестной сети ($(iwgetid -r))</b>"
+    fi
+    # Check the internet connection
+    ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
+
+    if ! [[ "$ONLINE" -eq "0" ]]; then
+      response=$(timeout 5s curl -s https://check.torproject.org/ | cat | grep -m 1 Congratulations | xargs)
+      if ! [[ "$response" == *"configured"* ]]; then
+        ip=$(curl -s "https://ipinfo.io/ip"); country=$(curl -s "https://ipinfo.io/country")
+        aplay -q /usr/share/computer/sounds/error.wav &
+        notify-send -i important "Будь осторожен!" "<b>Ты вне сети TOR\!</b>\n\nIP: $ip\nСтрана: $country"
+      fi
+    fi
   }
 
   # Notify the user that we are ready to go
   aplay -q /usr/share/computer/sounds/beep.wav &
 
   # Tell the user that we are currently processing the data
-  notify-send -i gnome-run -t 1 "Один момент..." &
+  notify-send -i gnome-run "Один момент..."
 
   # Check if the screensaver is running
   if (xscreensaver-command -time; echo "$?" > /tmp/.xscreensaver-exit-status) | grep "non-blanked" &> /dev/null; then
@@ -50,12 +66,110 @@ if ! [[ "$1" == "--remind" ]]; then
       ready
     fi
   fi
-else
-  if   [[ "$HOUR" == "12" && "$MINUTE" == "00" ]]; then
-    DISPLAY=":0.0" notify-send -i /usr/share/computer/icons/pora-na-obed.png "Пора на обед!" "<b>Ты поторопись\!</b>" &
-    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav
+elif [[ "$1" == "--remind" ]]; then
+  if [[ "$HOUR" == "12" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i /usr/share/computer/icons/pora-na-obed.png "Пора на обед!" "<b>Ты поторопись\!</b>"
   elif [[ "$HOUR" == "16" && "$MINUTE" == "30" ]]; then
-    DISPLAY=":0.0" notify-send -i stock_appointment-reminder "Закругляйся!" "<b>Рабочий день завершён\!</b>" &
-    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i stock_appointment-reminder "Закругляйся!" "<b>Рабочий день завершён\!</b>"
+  fi
+elif [[ "$1" == "--pomodoro" ]]; then
+  if [[ "$HOUR" == "08" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "08" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "08" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "08" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "09" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "09" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "09" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "09" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "10" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "10" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "10" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "10" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "11" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "11" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "11" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "11" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "Скоро обед!" "<b>Не проморгай\!</b>"
+  elif [[ "$HOUR" == "12" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "12" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "13" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "13" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "13" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "13" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "14" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "14" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "14" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "14" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "15" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "15" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "15" && "$MINUTE" == "30" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "15" && "$MINUTE" == "55" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "На отдых!" "<b>Пора передохнуть.</b>"
+  elif [[ "$HOUR" == "16" && "$MINUTE" == "00" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "За работу!" "<b>Вперёд и с песней\!</b>"
+  elif [[ "$HOUR" == "16" && "$MINUTE" == "25" ]]; then
+    XDG_RUNTIME_DIR=/run/user/`id -u` aplay -q /usr/share/computer/sounds/alert.wav &
+    DISPLAY=":0.0" notify-send -i clock "Закругляйся!" "<b>Скоро конец рабочего дня.</b>"
   fi
 fi
