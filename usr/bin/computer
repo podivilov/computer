@@ -3,10 +3,19 @@
 # Define global variables
 HOUR=$(date "+%H"); MINUTE=$(date "+%M")
 
+# Define global functions
+function ready() {
+  # Notify the user that we are ready to go
+  aplay -q /usr/share/computer/sounds/beep.wav &
+
+  # Tell the user that we are currently processing the data
+  notify-send -i gnome-run "Один момент..." "<b>Сейчас всё будет...</b>"
+}
+
 # Should we run in normal mode or remind mode
 if [[ -z "$1" ]]; then
   # Define global functions
-  function ready() {
+  function go() {
 
     sleep 0.75
 
@@ -14,7 +23,7 @@ if [[ -z "$1" ]]; then
     CURRENT_HOURS=$(date +%H)
     CURRENT_MINUTES=$(date +%M)
     CURRENT_DAY_OF_WEEK=$(date +%a | sed "s/Mon/понедельник/g" | sed "s/Tue/вторник/g" | sed "s/Wed/среда/g" | sed "s/Thu/четверг/g" | sed "s/Fri/пятница/g" | sed "s/Sat/суббота/g" | sed "s/Sun/воскресенье/g")
-    CURRENT_DAY_OF_MONTH=$(date +%d)
+    CURRENT_DAY_OF_MONTH=$(date +%d | sed 's/^0*//')
     CURRENT_MONTH=$(date +%b | sed "s/Jan/январь/g" | sed "s/Feb/февраль/g" | sed "s/Mar/март/g" | sed "s/Apr/апрель/g" | sed "s/May/май/g" | sed "s/Jun/июнь/g" | sed "s/Jul/июль/g" | sed "s/Aug/август/g" | sed "s/Sep/сентябрь/g" | sed "s/Oct/октябрь/g" | sed "s/Dec/декабрь/g")
     CURRENT_YEAR=$(date +%Y)
 
@@ -27,7 +36,13 @@ if [[ -z "$1" ]]; then
     FORECAST_HOURS=$(date +%H -d "today + 1 hour"); FORECAST_MINUTES=$(date +%M -d "today + 1 hour"); FORECAST_SECONDS=$(date +%S -d "today + 1 hour")
 
     if [[ "$CURRENT_DAY_OF_WEEK" != "суббота" || "$CURRENT_DAY_OF_WEEK" != "воскресенье" ]]; then
-      if [[ "$CURRENT_HOURS" -ge "16" && "$CURRENT_HOURS" -le "18" ]]; then
+      if [[ "$CURRENT_HOURS" -ge "11" && "$CURRENT_HOURS" -lt "12" ]]; then
+        FORECAST_YEAR=$(date +%Y -d "today 12:00"); FORECAST_MONTH=$(date +%m -d "today 12:00"); FORECAST_DAY=$(date +%d -d "today 12:00")
+        FORECAST_HOURS=$(date +%H -d "today 12:00"); FORECAST_MINUTES=$(date +%M -d "today 12:00"); FORECAST_SECONDS=$(date +%S -d "today 12:00")
+
+        FORECAST_TEXT="В обед"
+        FORECAST_CITY="Коломне"; FORECAST_LATITUDE="55.080377"; FORECAST_LONGITUDE="38.814066"
+      elif [[ "$CURRENT_HOURS" -ge "16" && "$CURRENT_HOURS" -le "18" ]]; then
         FORECAST_YEAR=$(date +%Y); FORECAST_MONTH=$(date +%m); FORECAST_DAY=$(date +%d)
         FORECAST_HOURS=$(date +%H); FORECAST_MINUTES=$(date +%M); FORECAST_SECONDS=$(date +%S)
 
@@ -45,12 +60,18 @@ if [[ -z "$1" ]]; then
 
         FORECAST_TEXT="Сегодня"
         FORECAST_CITY="Озёрах"; FORECAST_LATITUDE="54.861941"; FORECAST_LONGITUDE="38.539388"
-      elif [[ "$CURRENT_HOURS" -ge "00" && "$CURRENT_HOURS" -le "06" ]]; then
+      elif [[ "$CURRENT_HOURS" -ge "0" && "$CURRENT_HOURS" -lt "5" ]]; then
         FORECAST_YEAR=$(date +%Y -d "today + 30 minutes"); FORECAST_MONTH=$(date +%m -d "today + 30 minutes"); FORECAST_DAY=$(date +%d -d "today + 30 minutes")
         FORECAST_HOURS=$(date +%H -d "today + 30 minutes"); FORECAST_MINUTES=$(date +%M -d "today + 30 minutes"); FORECAST_SECONDS=$(date +%S -d "today + 30 minutes")
 
         FORECAST_TEXT="Через полчаса"
         FORECAST_CITY="Озёрах"; FORECAST_LATITUDE="54.861941"; FORECAST_LONGITUDE="38.539388"
+      elif [[ "$CURRENT_HOURS" -ge "5" && "$CURRENT_HOURS" -lt "8" ]]; then
+        FORECAST_YEAR=$(date +%Y -d "today 08:00"); FORECAST_MONTH=$(date +%m -d "today 08:00"); FORECAST_DAY=$(date +%d -d "today 08:00")
+        FORECAST_HOURS=$(date +%H -d "today 08:00"); FORECAST_MINUTES=$(date +%M -d "today 08:00"); FORECAST_SECONDS=$(date +%S -d "today 08:00")
+
+        FORECAST_TEXT="Утром"
+        FORECAST_CITY="Коломне"; FORECAST_LATITUDE="55.080377"; FORECAST_LONGITUDE="38.814066"
       else
         FORECAST_YEAR=$(date +%Y -d "today + 1 hour"); FORECAST_MONTH=$(date +%m -d "today + 1 hour"); FORECAST_DAY=$(date +%d -d "today + 1 hour")
         FORECAST_HOURS=$(date +%H -d "today + 1 hour"); FORECAST_MINUTES=$(date +%M -d "today + 1 hour"); FORECAST_SECONDS=$(date +%S -d "today + 1 hour")
@@ -113,60 +134,67 @@ if [[ -z "$1" ]]; then
       notify-send -i "$FORECAST_ICON" "Прогноз погоды" "\n$FORECAST_TEXT в <b>$FORECAST_CITY</b>\nожидается следующая погода:\n\n<b>Описание</b>: $FORECAST_SUMMARY\n<b>Температура</b>: $FORECAST_CELSIUS_TEMPERATURE°C\n<b>Вероятность дождя</b>: $FORECAST_RAIN_PROBABILITY%"
     fi
 
-    # Get count of new messages
-    NEW_MSG_COUNT=$(while (true); do ((i++)); timeout 5s /usr/bin/get_unread_message_count; if [[ "$?" -eq "0" || "$i" -ge "2" ]]; then break; fi; done)
+    if [[ $(iwgetid -r) != "Medium" ]]; then
+      # Get count of new messages
+      NEW_MSG_COUNT=$(while (true); do ((i++)); timeout 5s /usr/bin/get_unread_message_count; if [[ "$?" -eq "0" || "$i" -ge "2" ]]; then break; fi; done)
 
-    # Show new notifications
-    if [[ "$NEW_MSG_COUNT" -gt "0" ]]; then
-      aplay -q /usr/share/computer/sounds/information.wav &
-      notify-send -i mail-mark-important "Проверь почту!" "У тебя есть новые сообщения <b>($NEW_MSG_COUNT)</b>"
-      thunderbird &
-    elif [[ -z "$NEW_MSG_COUNT" ]]; then
-      if [[ "$ONLINE" -eq "1" ]]; then
-        aplay -q /usr/share/computer/sounds/error.wav &
-        notify-send -i error "Упс!" "<b>Что-то пошло не так...</b>"
+      # Show new notifications
+      if [[ "$NEW_MSG_COUNT" -gt "0" ]]; then
+        aplay -q /usr/share/computer/sounds/information.wav &
+        notify-send -i mail-mark-important "Проверь почту!" "У тебя есть новые сообщения <b>($NEW_MSG_COUNT)</b>"
+        thunderbird &
+      elif [[ -z "$NEW_MSG_COUNT" ]]; then
+        if [[ "$ONLINE" -eq "1" ]]; then
+          aplay -q /usr/share/computer/sounds/error.wav &
+          notify-send -i error "Упс!" "<b>Что-то пошло не так...</b>"
+        else
+          aplay -q /usr/share/computer/sounds/error.wav &
+          notify-send -i network-offline "Караул!" "<b>Интернета нет\!</b>"
+        fi
       else
-        aplay -q /usr/share/computer/sounds/error.wav &
-        notify-send -i network-offline "Караул!" "<b>Интернета нет\!</b>"
+        aplay -q /usr/share/computer/sounds/nothing-interesting.wav &
+        notify-send -i info "Ничего интересного..." "<b>Новых сообщений нет.</b>"
       fi
-    else
-      aplay -q /usr/share/computer/sounds/nothing-interesting.wav &
-      notify-send -i info "Ничего интересного..." "<b>Новых сообщений нет.</b>"
     fi
     if ! [[ $(iwgetid -r) == "Podivilov" ]]; then
-      sleep 0.75
-      aplay -q /usr/share/computer/sounds/warning.wav &
-      notify-send -i important "Внимание!" "<b>Ты подключен к неизвестной сети ($(iwgetid -r))</b>"
-    fi
-    # Check the internet connection
-    ping -q -w 1 -c 1 `ip r | grep default | cut -d ' ' -f 3` &> /dev/null && ONLINE="1" || ONLINE="0"
-
-    if [[ "$ONLINE" -eq "1" ]]; then
-      response=$(timeout 5s curl -s https://check.torproject.org/ | cat | grep -m 1 Congratulations | xargs)
-      if [[ -z "$response" || "$response" != *"configured"* ]]; then
-        ip=$(curl -s "https://icanhazip.com/"); country=$(curl -s "https://ipinfo.io/country")
-        aplay -q /usr/share/computer/sounds/error.wav &
-        notify-send -i important "Будь осторожен!" "<b>Ты вне сети TOR\!</b>\n\nIP: $ip\nСтрана: $country"
+       sleep 0.75
+      if [[ $(iwgetid -r) == "Medium" ]]; then
+        if timeout 5s curl -s http://connectivitycheck.medium.isp/; then
+          aplay -q /usr/share/computer/sounds/information.wav &
+          notify-send -i /usr/share/computer/icons/medium.png "Отлично!" "Ты подключен к сети <b>«Medium»</b>"
+        else
+          aplay -q /usr/share/computer/sounds/warning.wav &
+          notify-send -i /usr/share/computer/icons/medium.png "Упс!" "Ресурсы сети <b>«Medium»</b> недоступны:\nв соединении отказано"
+        fi
+      else
+        aplay -q /usr/share/computer/sounds/warning.wav &
+        notify-send -i important "Внимание!" "Ты подключен к неизвестной сети\!\n\n<b>SSID</b>: $(iwgetid -r)"
       fi
+    else
+
+      sleep 0.75
+
+      aplay -q /usr/share/computer/sounds/warning.wav &
+      notify-send -i /usr/share/computer/icons/medium.png "Here be dragons!" "Ты не подключен к сети <b>«Medium»</b>"
     fi
   }
 
-  # Notify the user that we are ready to go
-  aplay -q /usr/share/computer/sounds/beep.wav &
-
-  # Tell the user that we are currently processing the data
-  notify-send -i gnome-run "Один момент..." "<b>Сейчас всё будет...</b>"
-
   # Check if the screensaver is running
   if (xscreensaver-command -time; echo "$?" > /tmp/.xscreensaver-exit-status) | grep "non-blanked" &> /dev/null; then
-    ready
+    ready; go
   else
     xscreensaver_exit_status=$(cat /tmp/.xscreensaver-exit-status)
     if [[ "$xscreensaver_exit_status" != "255" ]]; then
       xscreensaver-command -deactivate &> /dev/null &
-      ready
+
+      aplay -q /usr/share/computer/sounds/information.wav &
+      notify-send -i utilities-system-monitor "Быстро ты!" "<b>С возвращением\!</b>"
+
+      sleep 0.75
+
+      ready; go
     else
-      ready
+      ready; go
     fi
   fi
 elif [[ "$1" == "--motion" ]]; then
